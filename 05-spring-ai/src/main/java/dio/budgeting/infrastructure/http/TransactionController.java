@@ -1,7 +1,9 @@
 package dio.budgeting.infrastructure.http;
 
+import dio.budgeting.application.CalculateTotalBalanceUseCase;
 import dio.budgeting.application.ListTransactionsByCategoryUseCase;
 import dio.budgeting.application.PersistTransactionUseCase;
+import dio.budgeting.application.output.BalanceOutput;
 import dio.budgeting.domain.Category;
 import dio.budgeting.infrastructure.http.request.TransactionRequest;
 import dio.budgeting.infrastructure.http.response.TransactionResponse;
@@ -24,6 +26,7 @@ import java.util.List;
 public class TransactionController {
     private final PersistTransactionUseCase persistTransactionUseCase;
     private final ListTransactionsByCategoryUseCase listTransactionsByCategoryUseCase;
+    private final CalculateTotalBalanceUseCase calculateTotalBalanceUseCase;
 
     private final TranscriptionModel transcriptionModel;
     private final ChatClient chatClient;
@@ -31,16 +34,18 @@ public class TransactionController {
 
     public TransactionController(PersistTransactionUseCase persistTransactionUseCase,
                                  ListTransactionsByCategoryUseCase listTransactionsByCategoryUseCase,
+                                 CalculateTotalBalanceUseCase calculateTotalBalanceUseCase,
                                  TranscriptionModel transcriptionModel,
                                  @Value("classpath:prompts/system-message.st") Resource systemPrompt,
                                  ChatClient.Builder chatClientBuilder,
                                  TextToSpeechModel textToSpeechModel) throws IOException {
         this.persistTransactionUseCase = persistTransactionUseCase;
         this.listTransactionsByCategoryUseCase = listTransactionsByCategoryUseCase;
+        this.calculateTotalBalanceUseCase = calculateTotalBalanceUseCase;
         this.transcriptionModel = transcriptionModel;
         this.chatClient = chatClientBuilder
                 .defaultSystem(systemPrompt.getContentAsString(Charset.defaultCharset()))
-                .defaultTools(persistTransactionUseCase, listTransactionsByCategoryUseCase)
+                .defaultTools(persistTransactionUseCase, listTransactionsByCategoryUseCase, calculateTotalBalanceUseCase)
                 .build();
         this.textToSpeechModel = textToSpeechModel;
     }
@@ -50,6 +55,11 @@ public class TransactionController {
     public TransactionResponse createTransaction(@RequestBody TransactionRequest request) {
         var transaction = persistTransactionUseCase.execute(request.toInput());
         return TransactionResponse.from(transaction);
+    }
+
+    @GetMapping("/balance")
+    public BalanceOutput getBalance() {
+        return calculateTotalBalanceUseCase.execute();
     }
 
     @GetMapping("/{category}")
